@@ -149,9 +149,10 @@ function playTone(correct) {
   const AudioCtx = window.AudioContext || window.webkitAudioContext;
   if (!AudioCtx) return;
 
-  // GMボタンのクリック処理から直接呼び出すことで、
-  // ブラウザの自動再生制限に引っかからないようにします。
+  // GMボタンのクリック直後にAudioContextを作成・再開します。
+  // iPhone/Safariなどの自動再生制限にも対応しやすくします。
   const ctx = new AudioCtx();
+  void ctx.resume();
 
   const gain = ctx.createGain();
   gain.connect(ctx.destination);
@@ -207,7 +208,6 @@ function resizeAndCompress(file, maxWidth = 800, quality = 0.72) {
   });
 }
 
-const savedConfig = localStorage.getItem("firebaseConfig");
 
 async function connectFirebase() {
   try {
@@ -235,6 +235,94 @@ async function connectFirebase() {
   } catch (e) {
     console.error(e);
     setStatus("Firebase接続エラー: " + e.message, "error");
+  }
+}
+
+// 撮影後に選択された画像を圧縮してFirebaseへ送信します。
+cameraInput.addEventListener("change", async () => {
+  const file = cameraInput.files?.[0];
+
+  // 「撮影をキャンセル」した場合は何もしません。
+  if (!file) return;
+
+  if (!db) {
+    setStatus("Firebaseに接続できていません。", "error");
+    cameraInput.value = "";
+    return;
+  }
+
+  try {
+    setStatus("写真を圧縮しています…");
+
+    // スマホ写真を横幅800px・JPEGへ変換して容量を小さくします。
+    const dataUrl = await resizeAndCompress(file, 800, 0.72);
+
+    setStatus("写真をFirebaseへ送信しています…");
+
+    // 圧縮後画像のサイズを確認します。
+    const byteSize = Math.round((dataUrl.length * 3) / 4);
+    console.log("圧縮後画像サイズ:", Math.round(byteSize / 1024) + " KB");
+
+    const room = ROLE_PARAM === "a" ? "room1" : "room2";
+
+    // 画像と更新時刻を一度の更新で書き込みます。
+    await update(ref(db, sessionPath), {
+      [room]: dataUrl,
+      updatedAt: Date.now()
+    });
+
+    setStatus("写真を送信しました。", "ok");
+  } catch (e) {
+    console.error("画像送信エラー:", e);
+
+    // Firebaseの権限エラーなども画面に表示します。
+    const message = e?.message || String(e);
+    setStatus("写真の送信に失敗しました: " + message, "error");
+  } finally {
+    // 同じ写真をもう一度選択できるようにします。
+    cameraInput.value = "";
+  }
+});
+
+// GMの正解・不正解ボタン。
+$("correctBtn").addEventListener("click", async () => {
+  // ユーザーのクリック直後に音を鳴らします。
+  playTone(true);
+  await judge("correct");
+});
+
+$("wrongBtn").addEventListener("click", async () => {
+  // ユーザーのクリック直後に音を鳴らします。
+  playTone(false);
+  await judge("wrong");
+});
+
+async function judge(action) {
+  if (!db) {
+    setStatus("Firebaseに接続できていません。", "error");
+    return;
+  }
+
+  try {
+    setStatus(action === "correct" ? "正解を送信しています…" : "不正解を送信しています…");
+
+    // ルーム1・ルーム2を同時に消し、判定イベントを全端末へ通知します。
+    await update(ref(db, sessionPath), {
+      room1: null,
+      room2: null,
+      lastAction: action,
+      actionId: Date.now(),
+      updatedAt: Date.now()
+    });
+
+    setStatus(
+      action === "correct" ? "正解を送信しました。" : "不正解を送信しました。",
+      "ok"
+    );
+  } catch (e) {
+    console.error("判定送信エラー:", e);
+    const message = e?.message || String(e);
+    setStatus("判定の送信に失敗しました: " + message, "error");
   }
 }
 
