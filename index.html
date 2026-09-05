@@ -170,6 +170,10 @@ import { getDatabase, ref, onValue, set, update } from "https://www.gstatic.com/
 const ROLE_PARAM = new URLSearchParams(location.search).get("role") || "";
 const GM_KEY = "gm_secret123";
 
+// 判定音を鳴らす画面。
+// GMと「表示」画面だけで音を鳴らし、ルーム1/2では鳴らしません。
+const playJudgeSound = ROLE_PARAM === GM_KEY || (ROLE_PARAM !== "a" && ROLE_PARAM !== "b");
+
 
 const $ = (id) => document.getElementById(id);
 const statusEl = $("status");
@@ -251,7 +255,7 @@ document.addEventListener("pointerdown", () => { unlockAudio(); }, { passive: tr
 
 function playTone(correct) {
   const AudioCtx = window.AudioContext || window.webkitAudioContext;
-  if (!AudioCtx) return;
+  if (!AudioCtx || !playJudgeSound) return;
 
   if (!audioContext || !audioUnlocked) {
     unlockAudio();
@@ -260,18 +264,18 @@ function playTone(correct) {
 
   const ctx = audioContext;
 
-  // 1音分を鳴らす処理
-  const beep = (frequency, startTime, duration) => {
+  // 音量の立ち上がり・減衰を作る共通処理
+  const beep = (frequency, startTime, duration, volume = 0.22, wave = "sine") => {
     const gain = ctx.createGain();
     gain.connect(ctx.destination);
 
     gain.gain.setValueAtTime(0.0001, startTime);
-    gain.gain.exponentialRampToValueAtTime(0.18, startTime + 0.01);
+    gain.gain.exponentialRampToValueAtTime(volume, startTime + 0.008);
     gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
 
     const osc = ctx.createOscillator();
     osc.connect(gain);
-    osc.type = "sine";
+    osc.type = wave;
     osc.frequency.setValueAtTime(frequency, startTime);
 
     osc.start(startTime);
@@ -282,19 +286,22 @@ function playTone(correct) {
         gain.disconnect();
         osc.disconnect();
       } catch {}
-    }, Math.max(100, Math.ceil((startTime - ctx.currentTime + duration) * 1000) + 100));
+    }, Math.max(100, Math.ceil((startTime - ctx.currentTime + duration) * 1000) + 150));
   };
 
   if (correct) {
-    // 「ピンポン・ピンポン」
-    beep(880,  ctx.currentTime,        0.18);
-    beep(1175, ctx.currentTime + 0.18, 0.24);
-    beep(880,  ctx.currentTime + 0.46, 0.18);
-    beep(1175, ctx.currentTime + 0.64, 0.28);
+    // 早押しクイズの正解音をイメージした「ピンポン・ピンポン」
+    // 1回目のチャイム
+    beep(784,  ctx.currentTime,        0.18, 0.24, "sine");
+    beep(1047, ctx.currentTime + 0.14, 0.28, 0.27, "sine");
+
+    // 2回目のチャイム
+    beep(784,  ctx.currentTime + 0.48, 0.18, 0.24, "sine");
+    beep(1047, ctx.currentTime + 0.62, 0.32, 0.29, "sine");
   } else {
-    // 「ブブー」
-    beep(180, ctx.currentTime, 0.28);
-    beep(110, ctx.currentTime + 0.28, 0.38);
+    // 早押しクイズの不正解音をイメージした「ブッブー」
+    beep(145, ctx.currentTime,        0.22, 0.30, "sawtooth");
+    beep(110, ctx.currentTime + 0.18, 0.48, 0.30, "sawtooth");
   }
 }
 
@@ -349,14 +356,14 @@ async function connectFirebase() {
         if (data.lastAction === "correct") playTone(true);
         if (data.lastAction === "wrong") playTone(false);
       }
-      setStatus("Firebase接続中", "ok");
+      setStatus("");
     }, (err) => {
       console.error(err);
-      setStatus("Firebase接続エラー: " + err.message, "error");
+      console.error("Firebase接続エラー:", err);
     });
   } catch (e) {
     console.error(e);
-    setStatus("Firebase接続エラー: " + e.message, "error");
+    console.error("Firebase接続エラー:", e);
   }
 }
 
