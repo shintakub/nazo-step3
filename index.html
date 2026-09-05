@@ -25,7 +25,7 @@
   .shootA, .shootB { min-height:58px; background:#2563eb; color:white; }
   .shootB { background:#7c3aed; color:white; }
   .visually-hidden { clip:rect(0 0 0 0); clip-path:inset(50%); height:1px; overflow:hidden; position:absolute; white-space:nowrap; width:1px; }
-  .gm-controls { grid-template-columns:1fr 1fr; }\n  .correct { background:#16a34a; color:white; }
+    .correct { background:#16a34a; color:white; }
   .wrong { background:#dc2626; color:white; }
   .status { display:none; }
   .error { color:#fca5a5; }
@@ -38,6 +38,66 @@
   .small { padding:10px 12px; font-size:14px; background:#374151; color:white; }
   .hidden { display:none !important; }
   @media (max-width:640px) { .app{padding:10px}.grid{gap:8px}.panel{padding:8px}.title{font-size:15px}.controls{margin-top:10px}button,.action-button{padding:14px;font-size:16px;min-height:58px} }
+
+  /* 撮影ボタンを大きく、視認性の高い主ボタンにします */
+  #playerControls {
+    margin-top: 18px;
+  }
+
+  #shootBtn {
+    min-height: 72px;
+    width: 100%;
+    border-radius: 18px;
+    font-size: 22px;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    box-shadow: 0 5px 0 rgba(0,0,0,0.22), 0 10px 24px rgba(0,0,0,0.20);
+    transition: transform 0.08s ease, box-shadow 0.08s ease;
+  }
+
+  #shootBtn::before {
+    content: "📷 ";
+  }
+
+  #shootBtn:active {
+    transform: translateY(4px);
+    box-shadow: 0 1px 0 rgba(0,0,0,0.22), 0 4px 12px rgba(0,0,0,0.18);
+  }
+
+  /* GMの正誤ボタン */
+  #gmControls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 10px;
+    width: 100%;
+  }
+
+  #gmControls button {
+    width: 100%;
+    min-width: 0;
+    min-height: 68px;
+    padding: 12px 8px;
+    font-size: 18px;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 480px) {
+    /* スマホでは絶対に縦積みにせず、2列を維持 */
+    #gmControls {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    #gmControls button {
+      min-height: 64px;
+      font-size: 17px;
+    }
+
+    #shootBtn {
+      min-height: 70px;
+      font-size: 21px;
+    }
+  }
+
 </style>
 </head>
 <body>
