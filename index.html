@@ -20,9 +20,11 @@
   .image-box img { width:100%; height:100%; object-fit:contain; display:none; }
   .placeholder { color:var(--muted); text-align:center; font-size:14px; }
   .controls { margin-top:14px; display:grid; gap:10px; }
-  button { border:0; border-radius:12px; padding:16px; font-size:17px; font-weight:800; cursor:pointer; touch-action:manipulation; }
+  button, .action-button { border:0; border-radius:12px; padding:16px; font-size:17px; font-weight:800; cursor:pointer; touch-action:manipulation; }
+  .action-button { display:block; text-align:center; user-select:none; -webkit-user-select:none; }
   .shootA { background:#2563eb; color:white; }
   .shootB { background:#7c3aed; color:white; }
+  .visually-hidden { clip:rect(0 0 0 0); clip-path:inset(50%); height:1px; overflow:hidden; position:absolute; white-space:nowrap; width:1px; }
   .correct { background:#16a34a; color:white; }
   .wrong { background:#dc2626; color:white; }
   .status { margin-top:12px; min-height:24px; color:var(--muted); font-size:13px; }
@@ -35,7 +37,7 @@
   textarea { width:100%; min-height:150px; margin-top:10px; background:#111827; color:#fff; border:1px solid var(--line); border-radius:10px; padding:10px; font-family:ui-monospace,monospace; }
   .small { padding:10px 12px; font-size:14px; background:#374151; color:white; }
   .hidden { display:none !important; }
-  @media (max-width:640px) { .app{padding:10px}.grid{gap:8px}.panel{padding:8px}.title{font-size:15px}.controls{margin-top:10px}button{padding:14px;font-size:16px} }
+  @media (max-width:640px) { .app{padding:10px}.grid{gap:8px}.panel{padding:8px}.title{font-size:15px}.controls{margin-top:10px}button,.action-button{padding:14px;font-size:16px} }
 </style>
 </head>
 <body>
@@ -62,8 +64,9 @@
   </div>
 
   <div id="playerControls" class="controls hidden">
-    <button id="shootBtn">撮影する</button>
-    <input id="cameraInput" type="file" accept="image/*" capture="environment">
+    <!-- labelからfile inputを起動します。スマホのカメラ/写真選択画面を開きやすい方式です。 -->
+    <label id="shootBtn" class="action-button" for="cameraInput">撮影する</label>
+    <input id="cameraInput" class="visually-hidden" type="file" accept="image/*" capture="environment">
   </div>
 
   <div id="gmControls" class="controls hidden">
@@ -145,27 +148,35 @@ function renderArea(area, dataUrl) {
 function playTone(correct) {
   const AudioCtx = window.AudioContext || window.webkitAudioContext;
   if (!AudioCtx) return;
+
+  // GMボタンのクリック処理から直接呼び出すことで、
+  // ブラウザの自動再生制限に引っかからないようにします。
   const ctx = new AudioCtx();
 
   const gain = ctx.createGain();
   gain.connect(ctx.destination);
   gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.01);
-  gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + (correct ? 0.55 : 0.75));
+  gain.gain.exponentialRampToValueAtTime(0.22, ctx.currentTime + 0.015);
+  gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + (correct ? 0.65 : 0.8));
 
   const osc = ctx.createOscillator();
   osc.connect(gain);
-  osc.type = "sine";
-  osc.frequency.setValueAtTime(correct ? 880 : 180, ctx.currentTime);
-  if (correct) {
-    osc.frequency.setValueAtTime(1175, ctx.currentTime + 0.14);
-  } else {
-    osc.frequency.exponentialRampToValueAtTime(90, ctx.currentTime + 0.55);
-  }
-  osc.start();
-  osc.stop(ctx.currentTime + (correct ? 0.56 : 0.76));
 
-  setTimeout(() => ctx.close(), 900);
+  if (correct) {
+    // 正解：高い音を2回鳴らして「ピンポン」に近づけます。
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(784, ctx.currentTime);
+    osc.frequency.setValueAtTime(1046, ctx.currentTime + 0.16);
+  } else {
+    // 不正解：低い音を下降させて「ブブー」に近づけます。
+    osc.type = "sawtooth";
+    osc.frequency.setValueAtTime(240, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(90, ctx.currentTime + 0.62);
+  }
+
+  osc.start();
+  osc.stop(ctx.currentTime + (correct ? 0.66 : 0.81));
+  osc.addEventListener("ended", () => ctx.close(), { once: true });
 }
 
 function resizeAndCompress(file, maxWidth = 800, quality = 0.72) {
@@ -214,12 +225,8 @@ async function connectFirebase() {
       renderArea("a", data.room1 || null);
       renderArea("b", data.room2 || null);
 
-      // 判定イベントは actionId が変わったときだけ再生します。
-      if (data.actionId && data.actionId !== lastPlayedActionId) {
-        lastPlayedActionId = data.actionId;
-        if (data.lastAction === "correct") playTone(true);
-        if (data.lastAction === "wrong") playTone(false);
-      }
+      // 判定イベントIDは保持します。効果音はGMのクリック時に直接鳴らします。
+      if (data.actionId) lastPlayedActionId = data.actionId;
       setStatus("Firebase接続中", "ok");
     }, (err) => {
       console.error(err);
