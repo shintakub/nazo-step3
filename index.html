@@ -16,16 +16,16 @@
   .grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
   .panel { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:10px; }
   .title { font-weight:700; margin-bottom:8px; }
-  .image-box { aspect-ratio:4/3; background:#0b1220; border-radius:10px; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .image-box { aspect-ratio:3/4; background:#0b1220; border-radius:10px; display:flex; align-items:center; justify-content:center; overflow:hidden; }
   .image-box img { width:100%; height:100%; object-fit:contain; display:none; }
   .placeholder { color:var(--muted); text-align:center; font-size:14px; }
   .controls { margin-top:14px; display:grid; gap:10px; }
-  button, .action-button { border:0; border-radius:12px; padding:16px; font-size:17px; font-weight:800; cursor:pointer; touch-action:manipulation; }
+  button, .action-button { width:100%; min-height:58px; border:0; border-radius:12px; padding:16px; font-size:17px; font-weight:800; cursor:pointer; touch-action:manipulation; }
   .action-button { display:block; text-align:center; user-select:none; -webkit-user-select:none; }
-  .shootA { background:#2563eb; color:white; }
+  .shootA, .shootB { min-height:58px; background:#2563eb; color:white; }
   .shootB { background:#7c3aed; color:white; }
   .visually-hidden { clip:rect(0 0 0 0); clip-path:inset(50%); height:1px; overflow:hidden; position:absolute; white-space:nowrap; width:1px; }
-  .correct { background:#16a34a; color:white; }
+  .gm-controls { grid-template-columns:1fr 1fr; }\n  .correct { background:#16a34a; color:white; }
   .wrong { background:#dc2626; color:white; }
   .status { display:none; }
   .error { color:#fca5a5; }
@@ -37,7 +37,7 @@
   textarea { width:100%; min-height:150px; margin-top:10px; background:#111827; color:#fff; border:1px solid var(--line); border-radius:10px; padding:10px; font-family:ui-monospace,monospace; }
   .small { padding:10px 12px; font-size:14px; background:#374151; color:white; }
   .hidden { display:none !important; }
-  @media (max-width:640px) { .app{padding:10px}.grid{gap:8px}.panel{padding:8px}.title{font-size:15px}.controls{margin-top:10px}button,.action-button{padding:14px;font-size:16px} }
+  @media (max-width:640px) { .app{padding:10px}.grid{gap:8px}.panel{padding:8px}.title{font-size:15px}.controls{margin-top:10px}button,.action-button{padding:14px;font-size:16px;min-height:58px} }
 </style>
 </head>
 <body>
