@@ -184,6 +184,35 @@ const cameraInput = $("cameraInput");
 
 let db = null;
 let sessionPath = "puzzle/current";
+// 正解・不正解の効果音。
+// index.html と同じフォルダに correct.mp3 / wrong.mp3 を置きます。
+const correctSound = new Audio("./correct.mp3");
+const wrongSound = new Audio("./wrong.mp3");
+
+// 連続再生時も必ず音声の先頭から再生します。
+correctSound.preload = "auto";
+wrongSound.preload = "auto";
+correctSound.volume = 1.0;
+wrongSound.volume = 1.0;
+
+// 判定音を再生する画面。
+// ルーム1(a)・ルーム2(b)では鳴らしません。
+// 「表示（roleなし）」とGMでは鳴らします。
+const canPlayJudgeSound = ROLE_PARAM !== "a" && ROLE_PARAM !== "b";
+
+function playJudgeSound(action) {
+  if (!canPlayJudgeSound) return;
+
+  const sound = action === "correct" ? correctSound : wrongSound;
+
+  // 同じ音を連続して鳴らせるように先頭へ戻します。
+  sound.currentTime = 0;
+
+  sound.play().catch((error) => {
+    console.error("効果音の再生に失敗しました:", error);
+  });
+}
+
 // Firebaseの接続設定
 // Webアプリ登録時にFirebaseから取得した値を埋め込んでいます。
 // databaseURLだけはRealtime Database作成後のURLを指定してください。
@@ -221,6 +250,14 @@ function applyRoleUI() {
   }
 }
 
+
+// 表示画面など、Firebase受信後に再生する端末でブラウザの音声準備を行います。
+// これは音を鳴らさず、ブラウザ側に音声要素を認識させるだけです。
+document.addEventListener("pointerdown", () => {
+  correctSound.load();
+  wrongSound.load();
+}, { once: true });
+
 function renderArea(area, dataUrl) {
   const img = $(area === "a" ? "imgA" : "imgB");
   const ph = $(area === "a" ? "placeholderA" : "placeholderB");
@@ -235,75 +272,6 @@ function renderArea(area, dataUrl) {
   }
 }
 
-let audioContext = null;
-let audioUnlocked = false;
-
-// 各端末で最初のタップ時にAudioContextを開始し、以降のFirebase受信音を再生可能にします。
-async function unlockAudio() {
-  try {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (!AudioCtx) return;
-    if (!audioContext) audioContext = new AudioCtx();
-    if (audioContext.state === "suspended") await audioContext.resume();
-    audioUnlocked = audioContext.state === "running";
-  } catch (e) {
-    console.error("音声初期化エラー:", e);
-  }
-}
-
-document.addEventListener("pointerdown", () => { unlockAudio(); }, { passive: true });
-
-function playTone(correct) {
-  const AudioCtx = window.AudioContext || window.webkitAudioContext;
-  if (!AudioCtx || !playJudgeSound) return;
-
-  if (!audioContext || !audioUnlocked) {
-    unlockAudio();
-    return;
-  }
-
-  const ctx = audioContext;
-
-  // 音量の立ち上がり・減衰を作る共通処理
-  const beep = (frequency, startTime, duration, volume = 0.22, wave = "sine") => {
-    const gain = ctx.createGain();
-    gain.connect(ctx.destination);
-
-    gain.gain.setValueAtTime(0.0001, startTime);
-    gain.gain.exponentialRampToValueAtTime(volume, startTime + 0.008);
-    gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
-
-    const osc = ctx.createOscillator();
-    osc.connect(gain);
-    osc.type = wave;
-    osc.frequency.setValueAtTime(frequency, startTime);
-
-    osc.start(startTime);
-    osc.stop(startTime + duration);
-
-    setTimeout(() => {
-      try {
-        gain.disconnect();
-        osc.disconnect();
-      } catch {}
-    }, Math.max(100, Math.ceil((startTime - ctx.currentTime + duration) * 1000) + 150));
-  };
-
-  if (correct) {
-    // 早押しクイズの正解音をイメージした「ピンポン・ピンポン」
-    // 1回目のチャイム
-    beep(784,  ctx.currentTime,        0.18, 0.24, "sine");
-    beep(1047, ctx.currentTime + 0.14, 0.28, 0.27, "sine");
-
-    // 2回目のチャイム
-    beep(784,  ctx.currentTime + 0.48, 0.18, 0.24, "sine");
-    beep(1047, ctx.currentTime + 0.62, 0.32, 0.29, "sine");
-  } else {
-    // 早押しクイズの不正解音をイメージした「ブッブー」
-    beep(145, ctx.currentTime,        0.22, 0.30, "sawtooth");
-    beep(110, ctx.currentTime + 0.18, 0.48, 0.30, "sawtooth");
-  }
-}
 
 function resizeAndCompress(file, maxWidth = 800, quality = 0.72) {
   return new Promise((resolve, reject) => {
@@ -353,8 +321,8 @@ async function connectFirebase() {
       // 判定イベントを全端末で検知し、同じ判定音を再生します。
       if (data.actionId && data.actionId !== lastPlayedActionId) {
         lastPlayedActionId = data.actionId;
-        if (data.lastAction === "correct") playTone(true);
-        if (data.lastAction === "wrong") playTone(false);
+        if (data.lastAction === "correct") playJudgeSound("correct");
+        if (data.lastAction === "wrong") playJudgeSound("wrong");
       }
       setStatus("");
     }, (err) => {
