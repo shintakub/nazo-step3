@@ -170,35 +170,27 @@ import { getDatabase, ref, onValue, set, update } from "https://www.gstatic.com/
 const ROLE_PARAM = new URLSearchParams(location.search).get("role") || "";
 const GM_KEY = "gm_secret123";
 
-// 判定音を鳴らす画面。
-// GMと「表示」画面だけで音を鳴らし、ルーム1/2では鳴らしません。
-const playJudgeSound = ROLE_PARAM === GM_KEY || (ROLE_PARAM !== "a" && ROLE_PARAM !== "b");
+// URLのroleから4種類の役割を決定します。
+// ?role=gm            → GM
+// ?role=room1         → ルーム1
+// ?role=room2         → ルーム2
+// ?role=display       → 表示
+// 旧URLにも互換対応します。
+// ?role=gm_secret123  → GM
+// ?role=a             → ルーム1
+// ?role=b             → ルーム2
+// role未指定         → 表示
+const ROLE =
+  ROLE_PARAM === "gm" || ROLE_PARAM === GM_KEY
+    ? "gm"
+    : ROLE_PARAM === "room1" || ROLE_PARAM === "a"
+      ? "room1"
+      : ROLE_PARAM === "room2" || ROLE_PARAM === "b"
+        ? "room2"
+        : "display";
 
-
-const $ = (id) => document.getElementById(id);
-const statusEl = $("status");
-const roleLabel = $("roleLabel");
-const playerControls = $("playerControls");
-const gmControls = $("gmControls");
-const cameraInput = $("cameraInput");
-
-let db = null;
-let sessionPath = "puzzle/current";
-// 正解・不正解の効果音。
-// index.html と同じフォルダに correct.mp3 / wrong.mp3 を置きます。
-const correctSound = new Audio("./correct.mp3");
-const wrongSound = new Audio("./wrong.mp3");
-
-// 連続再生時も必ず音声の先頭から再生します。
-correctSound.preload = "auto";
-wrongSound.preload = "auto";
-correctSound.volume = 1.0;
-wrongSound.volume = 1.0;
-
-// 判定音を再生する画面。
-// ルーム1(a)・ルーム2(b)では鳴らしません。
-// 「表示（roleなし）」とGMでは鳴らします。
-const canPlayJudgeSound = ROLE_PARAM !== "a" && ROLE_PARAM !== "b";
+// GMと表示だけ判定音を鳴らします。
+const canPlayJudgeSound = ROLE === "gm" || ROLE === "display";
 
 function playJudgeSound(action) {
   if (!canPlayJudgeSound) return;
@@ -234,15 +226,16 @@ function setStatus(msg, cls="") {
 }
 
 function applyRoleUI() {
-  if (ROLE_PARAM === "a") {
+  // 4種類の役割ごとに表示するUIを決めます。
+  if (ROLE === "room1") {
     roleLabel.textContent = "ルーム1";
     playerControls.classList.remove("hidden");
     $("shootBtn").className = "shootA";
-  } else if (ROLE_PARAM === "b") {
+  } else if (ROLE === "room2") {
     roleLabel.textContent = "ルーム2";
     playerControls.classList.remove("hidden");
     $("shootBtn").className = "shootB";
-  } else if (ROLE_PARAM === GM_KEY) {
+  } else if (ROLE === "gm") {
     roleLabel.textContent = "GM";
     gmControls.classList.remove("hidden");
   } else {
@@ -342,6 +335,9 @@ cameraInput.addEventListener("change", async () => {
   // 「撮影をキャンセル」した場合は何もしません。
   if (!file) return;
 
+  // ルーム1/2以外では撮影データを送信しません。
+  if (ROLE !== "room1" && ROLE !== "room2") return;
+
   if (!db) {
     setStatus("Firebaseに接続できていません。", "error");
     cameraInput.value = "";
@@ -360,7 +356,7 @@ cameraInput.addEventListener("change", async () => {
     const byteSize = Math.round((dataUrl.length * 3) / 4);
     console.log("圧縮後画像サイズ:", Math.round(byteSize / 1024) + " KB");
 
-    const room = ROLE_PARAM === "a" ? "room1" : "room2";
+    const room = ROLE === "room1" ? "room1" : "room2";
 
     // 画像と更新時刻を一度の更新で書き込みます。
     await update(ref(db, sessionPath), {
